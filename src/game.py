@@ -4,54 +4,66 @@ import random
 import serial.tools.list_ports
 import serial.serialutil
 
-# --- SERIAL SETUP ---
+# ----------------- SERIAL SETUP -----------------
+ports = serial.tools.list_ports.comports()
 serialInst = serial.Serial()
 serialInst.baudrate = 115200
-serialInst.port = '/dev/cu.usbserial-110'  # Change to your port
+serialInst.port = '/dev/cu.usbserial-110'  # <-- Change if needed
 serialInst.open()
-motion_value = None  # Shared variable updated by serial
+motion_value = None  # None = no new motion
 
+# ----------------- GAME SETUP -----------------
+pygame.init()
+WIDTH, HEIGHT = 400, 600
+LANES = [120, 280]  # Only 2 lanes: left and right
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("ESP32 Motion-Controlled Game")
+clock = pygame.time.Clock()
+font = pygame.font.SysFont(None, 36)
+
+# ----------------- LOAD SPRITES -----------------
+player_img = pygame.image.load("images/player.png").convert_alpha()
+player_img = pygame.transform.scale(player_img, (100, 100))
+
+obstacle_img = pygame.image.load("images/obstacle.png").convert_alpha()
+obstacle_img = pygame.transform.scale(obstacle_img, (40, 40))
+
+# ----------------- COLORS -----------------
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 50, 50)
+
+# ----------------- FUNCTIONS -----------------
 def read_serial():
     global motion_value
     try:
         if serialInst.in_waiting:
             packet = serialInst.readline()
-            move = packet.decode('utf-8').strip()
-            if 'right' in move:
-                motion_value = 0
-            elif 'left' in move:
-                motion_value = 1
-            print("Serial:", move)
+            move = packet.decode('utf-8').strip().lower()
+            if "left" in move:
+                motion_value = "left"
+            elif "right" in move:
+                motion_value = "right"
+            else:
+                motion_value = None
     except serial.serialutil.SerialException:
-        print('Serial read error')
+        print("Serial error")
 
-# --- GAME CONFIG ---
-WIDTH, HEIGHT = 400, 600
-LANES = [120, 280]  # Only 2 lanes
-
-pygame.init()
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-clock = pygame.time.Clock()
-font = pygame.font.SysFont(None, 36)
-
-# --- COLORS ---
-WHITE = (255, 255, 255)
-BLUE = (50, 150, 255)
-BLACK = (0, 0, 0)
-RED = (255, 50, 50)
-
-# --- FUNCTIONS ---
 def draw(player_rect, obstacles, score):
     screen.fill(WHITE)
 
+    # Draw lanes
     for lane_x in LANES:
         pygame.draw.line(screen, (220, 220, 220), (lane_x, 0), (lane_x, HEIGHT), 2)
 
-    pygame.draw.rect(screen, BLUE, player_rect)
+    # Draw player
+    screen.blit(player_img, player_rect)
 
+    # Draw obstacles
     for obs in obstacles:
-        pygame.draw.rect(screen, RED, obs)
+        screen.blit(obstacle_img, obs)
 
+    # Draw score
     score_surf = font.render(f"Score: {score}", True, BLACK)
     screen.blit(score_surf, (10, 10))
 
@@ -59,7 +71,7 @@ def draw(player_rect, obstacles, score):
 
 def game_loop():
     global motion_value
-    player_lane = 0
+    player_lane = 0  # Start in left lane
     player_rect = pygame.Rect(LANES[player_lane] - 20, HEIGHT - 100, 40, 40)
     
     obstacles = []
@@ -80,30 +92,36 @@ def game_loop():
                 pygame.quit()
                 exit()
 
-        if motion_value is not None:
-            if motion_value == 1:
-                player_lane = max(0, player_lane - 1)
-            elif motion_value == 0:
-                player_lane = min(1, player_lane + 1)
+        # PIR-controlled movement
+        if motion_value == "left":
+            player_lane = max(0, player_lane - 1)
             player_rect.x = LANES[player_lane] - 20
-            motion_value = None  # Reset after move
+            motion_value = None
+        elif motion_value == "right":
+            player_lane = min(1, player_lane + 1)
+            player_rect.x = LANES[player_lane] - 20
+            motion_value = None
 
-        # Create new obstacles
+        # Spawn obstacle
         if current_time - obstacle_timer > obstacle_interval:
             lane = random.choice([0, 1])
             obs = pygame.Rect(LANES[lane] - 20, -40, 40, 40)
             obstacles.append(obs)
             obstacle_timer = current_time
 
+        # Move obstacles
         for obs in obstacles:
             obs.y += speed
 
+        # Remove off-screen
         obstacles = [obs for obs in obstacles if obs.y < HEIGHT]
 
+        # Collision check
         for obs in obstacles:
             if player_rect.colliderect(obs):
                 return score
 
+        # Score and difficulty
         score = (current_time - start_time) // 100
         speed = 5 + score // 20
         obstacle_interval = max(400, 1500 - score * 5)
@@ -132,7 +150,7 @@ def show_game_over(score):
                 elif event.key == pygame.K_q:
                     return False
 
-# --- MAIN LOOP ---
+# ----------------- MAIN LOOP -----------------
 while True:
     final_score = game_loop()
     if not show_game_over(final_score):
