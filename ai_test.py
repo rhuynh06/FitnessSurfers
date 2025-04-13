@@ -1,6 +1,6 @@
 from google import genai
 
-client = genai.Client(api_key="AIzaSyDDVBu_lDGCadrdZXQ3qEeGSuWWD9SWvlc")
+client = genai.Client(api_key="")
 
 def generate_direction_text(direction : str):
     response = client.models.generate_content(
