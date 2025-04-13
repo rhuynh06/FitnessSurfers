@@ -1,4 +1,4 @@
-##[BitHacks 2025](https://devpost.com/software/fitness-surfers)
+# [BitHacks 2025](https://devpost.com/software/fitness-surfers)
 
 # 🏃‍♂️ Fitness Surfers 🏄‍♀️  
 A motion-controlled, AI-powered arcade game that turns your body movements into high-stakes dodges! Think Subway Surfers meets real-life fitness and Gemini AI encouragement.
@@ -7,7 +7,7 @@ A motion-controlled, AI-powered arcade game that turns your body movements into 
 
 ## 🎮 Demo
 
-![Gameplay Preview](assets/demo.mov)
+![Gameplay Preview](assets/preview.png)
 
 > **Move left and right in real life to dodge obstacles in the game. If you fail, Gemini AI delivers a clever joke to cheer you up. Stay active, stay entertained.**
 
