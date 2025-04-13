@@ -180,18 +180,6 @@ def game_loop():
         for obs in obstacles:
             obs['rect'].y += speed
 
-            depth = obs['rect'].y / HEIGHT
-            scale = max(0.4, min(1.0, depth))
-
-            # Scale only the visual appearance of the obstacle, not the hitbox
-            base_img = obs['base_image']
-            new_width = int(100 * scale)  # This will only affect visual size, not hitbox
-            new_height = int(100 * scale)  # This will only affect visual size, not hitbox
-            obs['image'] = pygame.transform.scale(base_img, (new_width, new_height))
-
-            lane_center = LANES[obs['lane']]
-            obs['rect'].centerx = lane_center
-
         obstacles = [obs for obs in obstacles if obs['rect'].y < HEIGHT]
 
         for obs in obstacles:
@@ -262,6 +250,8 @@ def show_game_over(score):
                 exit()
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_r:
+                    pygame.mixer.stop()  # Stop all sounds
+                    
                     return True
                 elif event.key == pygame.K_q:
                     return False
