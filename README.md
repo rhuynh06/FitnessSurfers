@@ -32,6 +32,7 @@ We wanted to gamify fitness and make exercising more fun and encouraging. By com
 ## 🛠️ Tech Stack
 
 ### 💻 Software
+
 | Tool / Language | Use |
 |-----------------|-----|
 | **Python 3.13.1+** | Core game logic |
@@ -40,12 +41,17 @@ We wanted to gamify fitness and make exercising more fun and encouraging. By com
 | **Serial (pyserial)** | Communication with ESP32 |
 | **Pillow (PIL)** | GIF frame handling |
 | **pygame.mixer** | Audio effects |
+| **PlatformIO (C++)** | ESP32 firmware for reading PIR sensor input |
 
-### 🧰 IDEs & Tools
-- **VS Code** – Python development
-- **Arduino IDE** – Flashing ESP32-S3 code (if needed)
-- **Google Colab** (optional) – Prototyping Gemini prompts
-- **Terminal / cmd** – For testing serial communication
+---
+
+## 🧰 IDEs & Tools
+
+| Tool | Purpose |
+|------|---------|
+| **VS Code** + **PlatformIO** | Embedded development for ESP32-S3 |
+| **VS Code** | Python development (game + AI integration) |
+| **Terminal / cmd** | Serial communication testing |
 
 ---
 
@@ -59,4 +65,3 @@ We wanted to gamify fitness and make exercising more fun and encouraging. By com
 | **Breadboard** | Sensor placement (optional but helps) |
 | **Micro-USB Cable** | Power & data for ESP32-S3 |
 | **PC or Laptop** | Runs the game and AI integration |
-
