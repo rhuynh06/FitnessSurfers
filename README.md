@@ -5,9 +5,9 @@ A motion-controlled, AI-powered arcade game that turns your body movements into 
 
 ---
 
-## 🎮 Demo
+## 🎮 Preview
 
-![Gameplay Preview](src/assets/preview.png)
+<img src="src/assets/preview.png" alt="Gameplay Preview" width="400"/>
 
 > **Move left and right in real life to dodge obstacles in the game. If you fail, Gemini AI delivers a clever joke to cheer you up. Stay active, stay entertained.**
 
