@@ -26,24 +26,20 @@ void loop() {
   int val1 = digitalRead(inputPin1); // Left sensor
   int val2 = digitalRead(inputPin2); // Right sensor
 
-  bool triggered = false;
-
-  if (val1 == HIGH) {
-    Serial.println("left");
-    rgb.setPixelColor(0, rgb.Color(0, 255, 0));  // Green for left
-    triggered = true;
-  }
-
-  else if (val2 == HIGH) {
-    Serial.println("right");
-    rgb.setPixelColor(0, rgb.Color(255, 255, 0));  // Yellow for right
-    triggered = true;
-  }
-
-  if (!triggered) {
+  if (val1 == HIGH && val2 == HIGH){
     rgb.setPixelColor(0, rgb.Color(0, 0, 255));  // Blue idle
+    Serial.println(2);
+  } 
+  else if (val1 == HIGH) {
+    val2 == LOW;
+    Serial.println(1);
+    rgb.setPixelColor(0, rgb.Color(0, 255, 0));  // Green for left
+  }
+  else if (val2 == HIGH) {
+    val1 == HIGH;
+    Serial.println(3);
+    rgb.setPixelColor(0, rgb.Color(255, 255, 0));  // Yellow for right
   }
 
   rgb.show();
-  delay(200); // Minimal debounce
 }

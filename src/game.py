@@ -17,7 +17,7 @@ motion_value = None  # None = no new motion
 # ----------------- GAME SETUP -----------------
 pygame.init()
 WIDTH, HEIGHT = 400, 600
-LANES = [120, 280]  # Only 2 lanes: left and right
+LANES = [100, 200, 300]  # Three lanes: left, middle, and right
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("ESP32 Motion-Controlled Game")
 clock = pygame.time.Clock()
@@ -80,16 +80,19 @@ def read_serial():
         if serialInst.in_waiting:
             packet = serialInst.readline()
             move = packet.decode('utf-8').strip().lower()
-            if "left" in move:
+            print(f"Received packet: {move}")
+            if "1" in move:
                 motion_value = "left"
-            elif "right" in move:
+            elif "3" in move:
                 motion_value = "right"
+            elif "2" in move:
+                motion_value = "mid"
             else:
                 motion_value = None
     except serial.serialutil.SerialException:
         print("Serial error")
 
-def draw(player_rect, obstacles, score):
+def draw(player_rect, obstacles, score, motion_display_text):
     screen.blit(background_img, (0, 0))
 
     # Draw lanes
@@ -104,7 +107,7 @@ def draw(player_rect, obstacles, score):
         player_frame_timer = now
     screen.blit(player_frames[player_frame_index], player_rect)
 
-    # Draw obstacles
+    # Draw obstacles (only scale the visual representation)
     for obs in obstacles:
         screen.blit(obs['image'], obs['rect'])
 
@@ -112,11 +115,15 @@ def draw(player_rect, obstacles, score):
     score_surf = font.render(f"Score: {score}", True, WHITE)
     screen.blit(score_surf, (10, 10))
 
+    # Draw motion detection status
+    motion_text = font.render(f"Motion: {motion_display_text}", True, RED)
+    screen.blit(motion_text, (WIDTH // 2 - motion_text.get_width() // 2, HEIGHT - 50))
+
     pygame.display.flip()
 
 def game_loop():
     global motion_value
-    player_lane = 0
+    player_lane = 1  # Start in the middle lane
     player_rect = pygame.Rect(LANES[player_lane] - 50, HEIGHT - 100, 100, 100)
 
     obstacles = []
@@ -142,18 +149,24 @@ def game_loop():
                     motion_value = "left"
                 elif event.key == pygame.K_RIGHT:
                     motion_value = "right"
+                elif event.key == pygame.K_DOWN:
+                    motion_value = "mid"
 
         if motion_value == "left":
             player_lane = max(0, player_lane - 1)
             player_rect.x = LANES[player_lane] - 50
             motion_value = None
         elif motion_value == "right":
-            player_lane = min(1, player_lane + 1)
+            player_lane = min(2, player_lane + 1)
+            player_rect.x = LANES[player_lane] - 50
+            motion_value = None
+        elif motion_value == "mid":
+            player_lane = 1  # Center lane
             player_rect.x = LANES[player_lane] - 50
             motion_value = None
 
         if current_time - obstacle_timer > obstacle_interval:
-            lane = random.choice([0, 1])
+            lane = random.choice([0, 1, 2])
             obstacle_type = random.choice([obstacle1_img, obstacle2_img])
             obs_rect = pygame.Rect(LANES[lane] - 50, -40, 100, 100)
             obstacles.append({
@@ -170,14 +183,13 @@ def game_loop():
             depth = obs['rect'].y / HEIGHT
             scale = max(0.4, min(1.0, depth))
 
+            # Scale only the visual appearance of the obstacle, not the hitbox
             base_img = obs['base_image']
-            new_width = int(100 * scale)
-            new_height = int(100 * scale)
+            new_width = int(100 * scale)  # This will only affect visual size, not hitbox
+            new_height = int(100 * scale)  # This will only affect visual size, not hitbox
             obs['image'] = pygame.transform.scale(base_img, (new_width, new_height))
 
             lane_center = LANES[obs['lane']]
-            obs['rect'].width = new_width
-            obs['rect'].height = new_height
             obs['rect'].centerx = lane_center
 
         obstacles = [obs for obs in obstacles if obs['rect'].y < HEIGHT]
@@ -192,7 +204,15 @@ def game_loop():
         speed = 5 + score // 20
         obstacle_interval = max(400, 1500 - score * 5)
 
-        draw(player_rect, obstacles, score)
+        motion_display_text = "No Motion"
+        if motion_value == "left":
+            motion_display_text = "Left"
+        elif motion_value == "right":
+            motion_display_text = "Right"
+        elif motion_value == "mid":
+            motion_display_text = "Middle"
+
+        draw(player_rect, obstacles, score, motion_display_text)
         clock.tick(30)
 
 def show_game_over(score):
