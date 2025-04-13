@@ -28,6 +28,8 @@ FPS = 60
 
 # Initialize pygame
 pygame.init()
+WIDTH, HEIGHT = 400, 600
+LANES = [120, 280]  # Only 2 lanes: left and right
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("ESP32 Controlled Game")
 clock = pygame.time.Clock()
@@ -59,63 +61,109 @@ def read_serial():
     global motion_value
     while True:
         if serialInst.in_waiting:
-            try:
-                line = serialInst.readline().decode('utf-8').strip()
-                if line in ['1', '2', '3']:
-                    with motion_lock:
-                        motion_value = int(line)
-            except:
-                continue
+            packet = serialInst.readline()
+            move = packet.decode('utf-8').strip().lower()
+            if "left" in move:
+                motion_value = "left"
+            elif "right" in move:
+                motion_value = "right"
+            else:
+                motion_value = None
+    except serial.serialutil.SerialException:
+        print("Serial error")
 
-serial_thread = threading.Thread(target=read_serial, daemon=True)
-serial_thread.start()
+def draw(player_rect, obstacles, score):
+    screen.blit(background_img, (0, 0))
 
-def get_motion_command():
-    global motion_value, last_move_time
+    # Draw lanes
+    for lane_x in LANES:
+        pygame.draw.line(screen, (220, 220, 220), (lane_x, 0), (lane_x, HEIGHT), 2)
+
+    # Animate player
+    global player_frame_index, player_frame_timer
     now = pygame.time.get_ticks()
-    with motion_lock:
-        mv = motion_value
-        if mv is not None and now - last_move_time > move_cooldown:
-            last_move_time = now
+    if now - player_frame_timer > player_frame_delay:
+        player_frame_index = (player_frame_index + 1) % len(player_frames)
+        player_frame_timer = now
+    screen.blit(player_frames[player_frame_index], player_rect)
+
+    # Draw obstacles
+    for obs in obstacles:
+        screen.blit(obs['image'], obs['rect'])
+
+    # Draw score
+    score_surf = font.render(f"Score: {score}", True, WHITE)
+    screen.blit(score_surf, (10, 10))
+
+    pygame.display.flip()
+
+def game_loop():
+    global motion_value
+    player_lane = 0
+    player_rect = pygame.Rect(LANES[player_lane] - 50, HEIGHT - 100, 100, 100)
+
+    obstacles = []
+    obstacle_timer = 0
+    obstacle_interval = 1500
+
+    score = 0
+    start_time = pygame.time.get_ticks()
+    speed = 5
+
+    running = True
+    while running:
+        read_serial()
+        current_time = pygame.time.get_ticks()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                exit()
+
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_LEFT:
+                    motion_value = "left"
+                elif event.key == pygame.K_RIGHT:
+                    motion_value = "right"
+
+        if motion_value == "left":
+            player_lane = max(0, player_lane - 1)
+            player_rect.x = LANES[player_lane] - 50
             motion_value = None
-            return mv
-    return None
+        elif motion_value == "right":
+            player_lane = min(1, player_lane + 1)
+            player_rect.x = LANES[player_lane] - 50
+            motion_value = None
 
-# Main loop
-running = True
-while running:
-    clock.tick(FPS)
-    screen.blit(bg, (0, 0))
+        if current_time - obstacle_timer > obstacle_interval:
+            lane = random.choice([0, 1])
+            obstacle_type = random.choice([obstacle1_img, obstacle2_img])
+            obs_rect = pygame.Rect(LANES[lane] - 50, -40, 100, 100)
+            obstacles.append({
+                'rect': obs_rect,
+                'base_image': obstacle_type,
+                'image': obstacle_type,
+                'lane': lane
+            })
+            obstacle_timer = current_time
 
-    if not game_over:
-        # Handle input
-        mv = get_motion_command()
-        if mv == 1:
-            char_lane = max(0, char_lane - 1)
-        elif mv == 3:
-            char_lane = min(2, char_lane + 1)
-
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_LEFT]:
-            char_lane = max(0, char_lane - 1)
-        if keys[pygame.K_RIGHT]:
-            char_lane = min(2, char_lane + 1)
-
-        # Generate obstacles
-        obstacle_timer += 1
-        if obstacle_timer > 60:
-            obstacle_lane = random.randint(0, 2)
-            obstacles.append([LANES[obstacle_lane] - OBSTACLE_WIDTH // 2, -OBSTACLE_HEIGHT])
-            obstacle_timer = 0
-
-        # Move obstacles
         for obs in obstacles:
-            obs[1] += 7
+            obs['rect'].y += speed
 
-        # Check collisions
-        char_x = LANES[char_lane] - CHARACTER_WIDTH // 2
-        char_y = HEIGHT - CHARACTER_WIDTH - 20
-        char_rect = pygame.Rect(char_x, char_y, CHARACTER_WIDTH, CHARACTER_WIDTH)
+            depth = obs['rect'].y / HEIGHT
+            scale = max(0.4, min(1.0, depth))
+
+            base_img = obs['base_image']
+            new_width = int(100 * scale)
+            new_height = int(100 * scale)
+            obs['image'] = pygame.transform.scale(base_img, (new_width, new_height))
+
+            lane_center = LANES[obs['lane']]
+            obs['rect'].width = new_width
+            obs['rect'].height = new_height
+            obs['rect'].centerx = lane_center
+
+        obstacles = [obs for obs in obstacles if obs['rect'].y < HEIGHT]
 
         for obs in obstacles:
             obs_rect = pygame.Rect(obs[0], obs[1], OBSTACLE_WIDTH, OBSTACLE_HEIGHT)
@@ -123,31 +171,69 @@ while running:
                 game_over = True
                 bg_music.stop()
                 hit_sound.play()
-                break
+                return score
 
-        # Draw character
-        screen.blit(character, (char_x, char_y))
+        score = (current_time - start_time) // 100
+        speed = 5 + score // 20
+        obstacle_interval = max(400, 1500 - score * 5)
 
-        # Draw obstacles
-        for obs in obstacles:
-            screen.blit(obstacle_img, obs)
+        draw(player_rect, obstacles, score)
+        clock.tick(30)
 
-        # Update score
-        score += 1
-        font = pygame.font.SysFont(None, 36)
-        score_text = font.render(f"Score: {score}", True, (255, 255, 255))
-        screen.blit(score_text, (10, 10))
-    else:
-        font = pygame.font.SysFont(None, 72)
-        text = font.render("Game Over!", True, (255, 0, 0))
-        screen.blit(text, (WIDTH // 2 - 150, HEIGHT // 2 - 50))
+def show_game_over(score):
+    pygame.mixer.stop()  # Stop all sounds
+    game_over_sound = pygame.mixer.Sound(os.path.join(ASSETS, "hit.mp3"))
+    game_over_sound.play(loops=-1)
 
-    # Event handling
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+    # Dramatic red-black flickering background
+    flicker_colors = [(200, 0, 0), (30, 0, 0), (100, 0, 0)]
+    flicker_index = 0
+    flicker_timer = pygame.time.get_ticks()
+
+    # Fonts
+    big_font = pygame.font.SysFont("impact", 60)
+    msg = big_font.render("GAME OVER!", True, RED)
+    score_msg = font.render(f"Final Score: {score}", True, (255, 255, 0))
+    restart_msg = font.render("Press R to Restart or Q to Quit", True, (0, 255, 255))
+
+    # Flashing loop
+    flash_duration = 2000  # ms
+    flash_start = pygame.time.get_ticks()
+
+    while True:
+        current = pygame.time.get_ticks()
+
+        if current - flicker_timer > 150:
+            flicker_index = (flicker_index + 1) % len(flicker_colors)
+            flicker_timer = current
+
+        screen.fill(flicker_colors[flicker_index])
+        screen.blit(msg, (WIDTH // 2 - msg.get_width() // 2, 180))
+        screen.blit(score_msg, (WIDTH // 2 - score_msg.get_width() // 2, 260))
+        screen.blit(restart_msg, (WIDTH // 2 - restart_msg.get_width() // 2, 320))
+
+        # Optional: glitch effect
+        if current - flash_start < flash_duration:
+            for _ in range(3):
+                x_offset = random.randint(-5, 5)
+                y_offset = random.randint(-5, 5)
+                screen.blit(msg, (WIDTH // 2 - msg.get_width() // 2 + x_offset, 180 + y_offset))
 
     pygame.display.flip()
 
-pygame.quit()
-serialInst.close()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_r:
+                    return True
+                elif event.key == pygame.K_q:
+                    return False
+
+
+# ----------------- MAIN LOOP -----------------
+while True:
+    final_score = game_loop()
+    if not show_game_over(final_score):
+        break
