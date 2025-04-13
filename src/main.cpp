@@ -44,5 +44,5 @@ void loop() {
   }
 
   rgb.show();
-  delay(100);  // Reduce serial spam
+  delay(300);  // Reduce serial spam
 }

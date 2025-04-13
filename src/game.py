@@ -5,6 +5,7 @@ import serial.tools.list_ports
 import serial.serialutil
 from PIL import Image
 import os
+from ai import generate_game_over_text
 
 # ----------------- SERIAL SETUP -----------------
 ports = serial.tools.list_ports.comports()
@@ -189,9 +190,9 @@ def game_loop():
                 hit_sound.play()
                 return score
 
-        score = (current_time - start_time) // 100
-        speed = 5 + score // 20
-        obstacle_interval = max(400, 1500 - score * 5)
+        score = (current_time - start_time) // 200
+        speed = 2 + score // 40
+        obstacle_interval = max(1000, 3000 - score * 2)
 
         motion_display_text = "No Motion"
         if motion_value == "left":
@@ -204,39 +205,72 @@ def game_loop():
         draw(player_rect, obstacles, score, motion_display_text)
         clock.tick(30)
 
+def wrap_text(text, font, max_width):
+    words = text.split()
+    lines = []
+    current_line = ""
+    
+    for word in words:
+        test_line = current_line + " " + word if current_line else word
+        if font.size(test_line)[0] <= max_width:
+            current_line = test_line
+        else:
+            lines.append(current_line)
+            current_line = word
+    if current_line:
+        lines.append(current_line)
+    
+    return lines
+
 def show_game_over(score):
-    pygame.mixer.stop()  # Stop all sounds
+    pygame.mixer.stop()
     game_over_sound = pygame.mixer.Sound(os.path.join(ASSETS, "hit.mp3"))
     game_over_sound.play(loops=-1)
 
-    # Dramatic red-black flickering background
     flicker_colors = [(200, 0, 0), (30, 0, 0), (100, 0, 0)]
     flicker_index = 0
     flicker_timer = pygame.time.get_ticks()
 
-    # Fonts
-    big_font = pygame.font.SysFont("impact", 60)
+    big_font = pygame.font.SysFont("Impact", 60)
+    font = pygame.font.SysFont("Impact", 25)
+
+    # Get the AI game over message
+    try:
+        ai_msg_text = generate_game_over_text()
+    except Exception as e:
+        print("AI error:", e)
+        ai_msg_text = "Better luck next time!"
+
     msg = big_font.render("GAME OVER!", True, RED)
+
+    try:
+        ai_msg_text = generate_game_over_text()
+    except Exception as e:
+        print("AI error:", e)
+        ai_msg_text = "Better luck next time!"
+
+    ai_msg_lines = wrap_text(ai_msg_text, font, WIDTH - 40)
     score_msg = font.render(f"Final Score: {score}", True, (255, 255, 0))
     restart_msg = font.render("Press R to Restart or Q to Quit", True, (0, 255, 255))
 
-    # Flashing loop
-    flash_duration = 2000  # ms
+    flash_duration = 2000
     flash_start = pygame.time.get_ticks()
 
     while True:
         current = pygame.time.get_ticks()
-
         if current - flicker_timer > 150:
             flicker_index = (flicker_index + 1) % len(flicker_colors)
             flicker_timer = current
 
         screen.fill(flicker_colors[flicker_index])
         screen.blit(msg, (WIDTH // 2 - msg.get_width() // 2, 180))
-        screen.blit(score_msg, (WIDTH // 2 - score_msg.get_width() // 2, 260))
-        screen.blit(restart_msg, (WIDTH // 2 - restart_msg.get_width() // 2, 320))
+        screen.blit(score_msg, (WIDTH // 2 - score_msg.get_width() // 2, 240))
+        for i, line in enumerate(ai_msg_lines):
+            line_surf = font.render(line, True, (255, 100, 255))
+            screen.blit(line_surf, (WIDTH // 2 - line_surf.get_width() // 2, 270 + i * 30))
+        restart_y = 270 + len(ai_msg_lines) * 30 + 20  # 30px per line, +20 padding
+        screen.blit(restart_msg, (WIDTH // 2 - restart_msg.get_width() // 2, restart_y))
 
-        # Optional: glitch effect
         if current - flash_start < flash_duration:
             for _ in range(3):
                 x_offset = random.randint(-5, 5)
@@ -251,12 +285,10 @@ def show_game_over(score):
                 exit()
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_r:
-                    pygame.mixer.stop()  # Stop all sounds
-                    
+                    pygame.mixer.stop()
                     return True
                 elif event.key == pygame.K_q:
                     return False
-
 
 # ----------------- MAIN LOOP -----------------
 while True:
