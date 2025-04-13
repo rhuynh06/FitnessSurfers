@@ -1,78 +1,98 @@
-# game.py
+import serial
 import pygame
 import random
-import time
-import threading
 import serial.tools.list_ports
+import serial.serialutil
+from PIL import Image
+import os
 
-# Setup serial port
-def setup_serial():
-    ports = serial.tools.list_ports.comports()
-    for port in ports:
-        if "usbserial" in port.device or "USB" in port.device:
-            return serial.Serial(port.device, 115200, timeout=1)
-    print("No suitable serial port found.")
-    exit()
+# ----------------- SERIAL SETUP -----------------
+ports = serial.tools.list_ports.comports()
+serialInst = serial.Serial()
+serialInst.baudrate = 115200
+serialInst.port = '/dev/cu.usbserial-110'  # <-- Change if needed
+serialInst.open()
+motion_value = None  # None = no new motion
 
-serialInst = setup_serial()
-time.sleep(2)
-serialInst.reset_input_buffer()
-
-# Game constants
-WIDTH, HEIGHT = 800, 600
-LANES = [WIDTH // 4, WIDTH // 2, 3 * WIDTH // 4]
-CHARACTER_WIDTH = 80
-OBSTACLE_WIDTH = 80
-OBSTACLE_HEIGHT = 80
-FPS = 60
-
-# Initialize pygame
+# ----------------- GAME SETUP -----------------
 pygame.init()
 WIDTH, HEIGHT = 400, 600
-LANES = [120, 280]  # Only 2 lanes: left and right
+LANES = [100, 200, 300]  # Three lanes: left, middle, and right
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("ESP32 Controlled Game")
+pygame.display.set_caption("ESP32 Motion-Controlled Game")
 clock = pygame.time.Clock()
+font = pygame.font.SysFont("Impact", 25)
 
-# Load assets
-bg = pygame.transform.scale(pygame.image.load("assets/bg.jpg"), (WIDTH, HEIGHT))
-character = pygame.transform.scale(pygame.image.load("assets/character.png"), (CHARACTER_WIDTH, CHARACTER_WIDTH))
-obstacle_img = pygame.transform.scale(pygame.image.load("assets/obstacle1.jpg"), (OBSTACLE_WIDTH, OBSTACLE_HEIGHT))
+# ----------------- ASSET PATH -----------------
+ASSETS = "assets"
 
-# Load sounds
-bg_music = pygame.mixer.Sound("assets/bg_music.mp3")
-hit_sound = pygame.mixer.Sound("assets/hit.mp3")
+# ----------------- LOAD GIF FRAMES -----------------
+def load_gif_frames(path, scale=(100, 100)):
+    gif = Image.open(path)
+    frames = []
+    try:
+        while True:
+            frame = gif.convert("RGBA")
+            mode = frame.mode
+            size = frame.size
+            data = frame.tobytes()
 
-bg_music.play(-1)  # Loop background music
+            surface = pygame.image.fromstring(data, size, mode)
+            surface = pygame.transform.scale(surface, scale)
+            frames.append(surface)
+            gif.seek(gif.tell() + 1)
+    except EOFError:
+        pass
+    return frames
 
-# Game state
-char_lane = 1
-obstacles = []
-obstacle_timer = 0
-score = 0
-game_over = False
-motion_value = None
-motion_lock = threading.Lock()
-last_move_time = 0
-move_cooldown = 300  # milliseconds
+# Load animated character.gif frames
+gif_path = os.path.join(ASSETS, "character.gif")
+player_frames = load_gif_frames(gif_path)
+player_frame_index = 0
+player_frame_timer = 0
+player_frame_delay = 100
 
-# Thread to read serial data
+# ----------------- LOAD OTHER ASSETS -----------------
+background_img = pygame.image.load(os.path.join(ASSETS, "background.png"))
+background_img = pygame.transform.scale(background_img, (WIDTH, HEIGHT))
+
+obstacle1_img = pygame.image.load(os.path.join(ASSETS, "obstacle1.jpg")).convert_alpha()
+obstacle2_img = pygame.image.load(os.path.join(ASSETS, "obstacle2.jpg")).convert_alpha()
+
+obstacle1_img = pygame.transform.scale(obstacle1_img, (100, 100))
+obstacle2_img = pygame.transform.scale(obstacle2_img, (100, 100))
+
+# ----------------- COLORS -----------------
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 50, 50)
+
+# ----------------- SOUNDS -----------------
+bg_music = pygame.mixer.Sound(os.path.join(ASSETS, "bg_music.mp3"))
+hit_sound = pygame.mixer.Sound(os.path.join(ASSETS, "hit.mp3"))
+
+bg_music.play(-1, 0, 5000)
+
+# ----------------- FUNCTIONS -----------------
 def read_serial():
     global motion_value
-    while True:
+    try:
         if serialInst.in_waiting:
             packet = serialInst.readline()
             move = packet.decode('utf-8').strip().lower()
-            if "left" in move:
+            print(f"Received packet: {move}")
+            if "1" in move:
                 motion_value = "left"
-            elif "right" in move:
+            elif "3" in move:
                 motion_value = "right"
+            elif "2" in move:
+                motion_value = "mid"
             else:
                 motion_value = None
     except serial.serialutil.SerialException:
         print("Serial error")
 
-def draw(player_rect, obstacles, score):
+def draw(player_rect, obstacles, score, motion_display_text):
     screen.blit(background_img, (0, 0))
 
     # Draw lanes
@@ -87,7 +107,7 @@ def draw(player_rect, obstacles, score):
         player_frame_timer = now
     screen.blit(player_frames[player_frame_index], player_rect)
 
-    # Draw obstacles
+    # Draw obstacles (only scale the visual representation)
     for obs in obstacles:
         screen.blit(obs['image'], obs['rect'])
 
@@ -95,11 +115,15 @@ def draw(player_rect, obstacles, score):
     score_surf = font.render(f"Score: {score}", True, WHITE)
     screen.blit(score_surf, (10, 10))
 
+    # Draw motion detection status
+    motion_text = font.render(f"Motion: {motion_display_text}", True, RED)
+    screen.blit(motion_text, (WIDTH // 2 - motion_text.get_width() // 2, HEIGHT - 50))
+
     pygame.display.flip()
 
 def game_loop():
     global motion_value
-    player_lane = 0
+    player_lane = 1  # Start in the middle lane
     player_rect = pygame.Rect(LANES[player_lane] - 50, HEIGHT - 100, 100, 100)
 
     obstacles = []
@@ -125,18 +149,24 @@ def game_loop():
                     motion_value = "left"
                 elif event.key == pygame.K_RIGHT:
                     motion_value = "right"
+                elif event.key == pygame.K_DOWN:
+                    motion_value = "mid"
 
         if motion_value == "left":
             player_lane = max(0, player_lane - 1)
             player_rect.x = LANES[player_lane] - 50
-            motion_value = None
+            # motion_value = None
         elif motion_value == "right":
-            player_lane = min(1, player_lane + 1)
+            player_lane = min(2, player_lane + 1)
             player_rect.x = LANES[player_lane] - 50
-            motion_value = None
+            # motion_value = None
+        elif motion_value == "mid":
+            player_lane = 1  # Center lane
+            player_rect.x = LANES[player_lane] - 50
+            # motion_value = None
 
         if current_time - obstacle_timer > obstacle_interval:
-            lane = random.choice([0, 1])
+            lane = random.choice([0, 1, 2])
             obstacle_type = random.choice([obstacle1_img, obstacle2_img])
             obs_rect = pygame.Rect(LANES[lane] - 50, -40, 100, 100)
             obstacles.append({
@@ -153,23 +183,20 @@ def game_loop():
             depth = obs['rect'].y / HEIGHT
             scale = max(0.4, min(1.0, depth))
 
+            # Scale only the visual appearance of the obstacle, not the hitbox
             base_img = obs['base_image']
-            new_width = int(100 * scale)
-            new_height = int(100 * scale)
+            new_width = int(100 * scale)  # This will only affect visual size, not hitbox
+            new_height = int(100 * scale)  # This will only affect visual size, not hitbox
             obs['image'] = pygame.transform.scale(base_img, (new_width, new_height))
 
             lane_center = LANES[obs['lane']]
-            obs['rect'].width = new_width
-            obs['rect'].height = new_height
             obs['rect'].centerx = lane_center
 
         obstacles = [obs for obs in obstacles if obs['rect'].y < HEIGHT]
 
         for obs in obstacles:
-            obs_rect = pygame.Rect(obs[0], obs[1], OBSTACLE_WIDTH, OBSTACLE_HEIGHT)
-            if char_rect.colliderect(obs_rect):
-                game_over = True
-                bg_music.stop()
+            if player_rect.colliderect(obs['rect']):
+                pygame.mixer.stop()
                 hit_sound.play()
                 return score
 
@@ -177,7 +204,15 @@ def game_loop():
         speed = 5 + score // 20
         obstacle_interval = max(400, 1500 - score * 5)
 
-        draw(player_rect, obstacles, score)
+        motion_display_text = "No Motion"
+        if motion_value == "left":
+            motion_display_text = "Left"
+        elif motion_value == "right":
+            motion_display_text = "Right"
+        elif motion_value == "mid":
+            motion_display_text = "Middle"
+
+        draw(player_rect, obstacles, score, motion_display_text)
         clock.tick(30)
 
 def show_game_over(score):
@@ -219,7 +254,7 @@ def show_game_over(score):
                 y_offset = random.randint(-5, 5)
                 screen.blit(msg, (WIDTH // 2 - msg.get_width() // 2 + x_offset, 180 + y_offset))
 
-    pygame.display.flip()
+        pygame.display.flip()
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
