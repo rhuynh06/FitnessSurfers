@@ -123,6 +123,7 @@ def draw(player_rect, obstacles, score, motion_display_text):
 
 def game_loop():
     global motion_value
+    bg_music.play(-1, 0, 5000)
     player_lane = 1  # Start in the middle lane
     player_rect = pygame.Rect(LANES[player_lane] - 50, HEIGHT - 100, 100, 100)
 
