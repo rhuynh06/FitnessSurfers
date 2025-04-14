@@ -59,7 +59,7 @@ We wanted to gamify fitness and make exercising more fun and encouraging. By com
 
 | Component | Purpose |
 |----------|---------|
-| **ESP32-S3 Dev Board** *(from MicroCenter)* | Microcontroller to read sensor input |
+| **ESP32-S3 Dev Board** | Microcontroller to read sensor input |
 | **2x PIR Motion Sensors** | Detect body movement (left/right) |
 | **Male-to-Female Jumper Wires** | Connect sensors to ESP32 |
 | **Breadboard** | Sensor placement (optional but helps) |
