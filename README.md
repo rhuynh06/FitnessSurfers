@@ -1,11 +1,11 @@
 # [BitHacks 2025](https://devpost.com/software/fitness-surfers)
 
-# 🏃‍♂️ Fitness Surfers 🏄‍♀️  
+# Fitness Surfers
 A motion-controlled, AI-powered arcade game that turns your body movements into high-stakes dodges! Think Subway Surfers meets real-life fitness and Gemini AI encouragement.
 
 ---
 
-## 🎮 Preview
+## Preview
 
 <img src="src/assets/preview.png" alt="Gameplay Preview" width="400"/>
 
@@ -13,25 +13,25 @@ A motion-controlled, AI-powered arcade game that turns your body movements into 
 
 ---
 
-## 🧠 Inspiration
+## Inspiration
 
 We wanted to gamify fitness and make exercising more fun and encouraging. By combining physical motion sensors, AI feedback, and retro-style gameplay, we created a unique fusion of **gaming, movement, and motivation**.
 
 ---
 
-## 🚀 Features
+## Features
 
-- 🕹️ Motion-controlled gameplay using **PIR sensors**
-- 🧠 Real-time **AI coaching prompts** via Google Gemini
-- 💥 Animated obstacles and GIF-based player character
-- 🎧 Background music, sound effects, and collision audio
-- 😂 AI-generated jokes on game over
+- Motion-controlled gameplay using **PIR sensors**
+- Real-time **AI coaching prompts** via Google Gemini
+- Animated obstacles and GIF-based player character
+- Background music, sound effects, and collision audio
+- AI-generated jokes on game over
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
-### 💻 Software
+### Software
 
 | Tool / Language | Use |
 |-----------------|-----|
@@ -45,7 +45,7 @@ We wanted to gamify fitness and make exercising more fun and encouraging. By com
 
 ---
 
-## 🧰 IDEs & Tools
+## IDEs & Tools
 
 | Tool | Purpose |
 |------|---------|
@@ -55,7 +55,7 @@ We wanted to gamify fitness and make exercising more fun and encouraging. By com
 
 ---
 
-## 🔩 Hardware
+## Hardware
 
 | Component | Purpose |
 |----------|---------|
